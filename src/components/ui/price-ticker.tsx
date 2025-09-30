@@ -121,9 +121,9 @@ export function PriceTicker({
     const generateSVGPath = (points: PriceHistoryPoint[]) => {
         if (points.length < 2) return '';
 
-        const width = 300; // Adjusted for larger cards
-        const height = 96;
-        const padding = 8;
+        const width = 240; // Reduced to fit within card padding (288px - 48px padding)
+        const height = 128; // Increased for taller graph area
+        const padding = 12;
 
         const minPrice = Math.min(...points.map(p => p.price));
         const maxPrice = Math.max(...points.map(p => p.price));
@@ -177,11 +177,11 @@ export function PriceTicker({
 
                             if (!price) {
                                 return (
-                                    <div key={symbol} className="flex-shrink-0 w-80 h-64 bg-slate-900/50 rounded-lg p-6 border border-slate-700 animate-pulse">
+                                    <div key={symbol} className="flex-shrink-0 w-72 h-80 bg-slate-900/50 rounded-lg p-6 border border-slate-700 animate-pulse">
                                         <div className="flex items-center justify-between mb-4">
                                             <span className="text-sm text-gray-400">{symbol}</span>
                                         </div>
-                                        <div className="h-24 bg-gray-600 rounded mb-4"></div>
+                                        <div className="h-32 bg-gray-600 rounded mb-4"></div>
                                         <div className="h-8 bg-gray-600 rounded mb-2"></div>
                                         <div className="h-6 bg-gray-600 rounded w-3/4"></div>
                                     </div>
@@ -189,7 +189,7 @@ export function PriceTicker({
                             }
 
                             const isPositive = price.change24h >= 0;
-                            const cardClassName = `flex-shrink-0 w-80 h-64 bg-slate-900/50 rounded-lg p-6 border border-slate-700 transition-colors duration-200 ${priceChanges[symbol] ? 'price-card-flash' : ''}`;
+                            const cardClassName = `flex-shrink-0 w-72 h-80 bg-slate-900/50 rounded-lg p-6 border border-slate-700 transition-colors duration-200 ${priceChanges[symbol] ? 'price-card-flash' : ''}`;
 
                             return (
                                 <div key={symbol} className={cardClassName}>
@@ -240,11 +240,11 @@ export function PriceTicker({
 
                             if (!price) {
                                 return (
-                                    <div key={`${symbol}-duplicate`} className="flex-shrink-0 w-80 h-64 bg-slate-900/50 rounded-lg p-6 border border-slate-700 animate-pulse">
+                                    <div key={`${symbol}-duplicate`} className="flex-shrink-0 w-72 h-80 bg-slate-900/50 rounded-lg p-6 border border-slate-700 animate-pulse">
                                         <div className="flex items-center justify-between mb-4">
                                             <span className="text-sm text-gray-400">{symbol}</span>
                                         </div>
-                                        <div className="h-24 bg-gray-600 rounded mb-4"></div>
+                                        <div className="h-32 bg-gray-600 rounded mb-4"></div>
                                         <div className="h-8 bg-gray-600 rounded mb-2"></div>
                                         <div className="h-6 bg-gray-600 rounded w-3/4"></div>
                                     </div>
@@ -252,7 +252,7 @@ export function PriceTicker({
                             }
 
                             const isPositive = price.change24h >= 0;
-                            const cardClassName = `flex-shrink-0 w-80 h-64 bg-slate-900/50 rounded-lg p-6 border border-slate-700 transition-colors duration-200 ${priceChanges[symbol] ? 'price-card-flash' : ''}`;
+                            const cardClassName = `flex-shrink-0 w-72 h-80 bg-slate-900/50 rounded-lg p-6 border border-slate-700 transition-colors duration-200 ${priceChanges[symbol] ? 'price-card-flash' : ''}`;
 
                             return (
                                 <div key={`${symbol}-duplicate`} className={cardClassName}>
@@ -266,9 +266,9 @@ export function PriceTicker({
                                     </div>
 
                                     {/* Larger Graph */}
-                                    <div className="mb-6 h-24 flex items-center justify-center">
+                                    <div className="mb-6 h-32 flex items-center justify-center">
                                         {history.length > 1 ? (
-                                            <svg width="100%" height="96" className="overflow-visible">
+                                            <svg width="240" height="128" viewBox="0 0 240 128" className="w-full h-full">
                                                 <path
                                                     d={generateSVGPath(history)}
                                                     stroke="#ffffff"
