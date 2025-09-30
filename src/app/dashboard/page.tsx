@@ -4,7 +4,7 @@ import { useWalletStore, useBasketStore } from '@/src/lib/store';
 import { PriceTicker } from '@/src/components/ui/price-ticker';
 import { BasketCard } from '@/src/components/ui/basket-card';
 import { BuyTokensModal } from '@/src/components/ui/buy-tokens-modal';
-import { YourTokens } from '@/src/components/ui/your-token';
+import { YourTokens } from '@/src/components/ui/your-tokens';
 import { Button } from '@/src/components/ui/button';
 import { Plus, TrendingUp, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
