@@ -6,14 +6,13 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 contract BasketNFT is ERC721 {
     uint256 private _tokenIdCounter;
 
-    address public facade; // allowed orchestrator that can mint baskets
+    address public facade;
 
     struct BasketItem {
         address token;
-        uint256 amount; // raw token amount (token decimals apply)
+        uint256 amount;
     }
 
-    // tokenId => basket items
     mapping(uint256 => BasketItem[]) public basketItems;
 
     event BasketMinted(address indexed owner, uint256 tokenId);
@@ -29,8 +28,6 @@ contract BasketNFT is ERC721 {
         facade = _facade;
     }
 
-    /// @notice Called by Facade/orchestrator after it has done required token conversions and holds nothing (or nothing to hold).
-    /// The Facade provides the basket composition to store in the NFT metadata.
     function mintBasket(
         address owner,
         address[] calldata tokens,
@@ -50,16 +47,12 @@ contract BasketNFT is ERC721 {
             );
         }
 
-        if (bytes(metadataURI).length > 0) {
-            // Optionally set token URI (if ERC721URIStorage were used; for brevity we skip implementing storage here).
-            // Implementers: extend ERC721URIStorage to set tokenURI.
-        }
+        if (bytes(metadataURI).length > 0) {}
 
         emit BasketMinted(owner, tid);
         return tid;
     }
 
-    /// @notice read basket items for a tokenId
     function getBasket(
         uint256 tokenId
     )
