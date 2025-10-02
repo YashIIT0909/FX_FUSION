@@ -59,13 +59,7 @@ contract Facade {
         uint16[] calldata percentages,
         string calldata metadataURI
     ) external {
-        require(
-            toSymbols.length == percentages.length && toSymbols.length > 0,
-            "invalid basket data"
-        );
-        uint256 sum = 0;
-        for (uint256 i = 0; i < percentages.length; i++) sum += percentages[i];
-        require(sum == 10000, "percent must sum to 10000");
+        _validateBasketData(toSymbols, percentages);
 
         address fromTokenAddr = tokens[fromSymbol];
         require(fromTokenAddr != address(0), "unregistered from token");
@@ -75,26 +69,12 @@ contract Facade {
             address(this),
             fromAmount
         );
-
-        address[] memory basketTokens = new address[](toSymbols.length);
-        uint256[] memory basketAmounts = new uint256[](toSymbols.length);
-
         IERC20(fromTokenAddr).approve(address(currencySwap), fromAmount);
 
-        for (uint256 i = 0; i < toSymbols.length; i++) {
-            string memory toSym = toSymbols[i];
-            uint256 share = (fromAmount * percentages[i]) / 10000;
-
-            uint256 preBalance = IERC20(tokens[toSym]).balanceOf(address(this));
-            currencySwap.swapTokens(fromSymbol, toSym, share);
-            uint256 postBalance = IERC20(tokens[toSym]).balanceOf(
-                address(this)
-            );
-            uint256 got = postBalance - preBalance;
-
-            basketTokens[i] = tokens[toSym];
-            basketAmounts[i] = got;
-        }
+        (
+            address[] memory basketTokens,
+            uint256[] memory basketAmounts
+        ) = _performSwaps(fromSymbol, fromAmount, toSymbols, percentages);
 
         basketNft.mintBasket(
             msg.sender,
@@ -102,5 +82,49 @@ contract Facade {
             basketAmounts,
             metadataURI
         );
+    }
+
+    function _validateBasketData(
+        string[] calldata toSymbols,
+        uint16[] calldata percentages
+    ) private pure {
+        require(
+            toSymbols.length == percentages.length && toSymbols.length > 0,
+            "invalid basket data"
+        );
+
+        uint256 sum = 0;
+        for (uint256 i = 0; i < percentages.length; i++) sum += percentages[i];
+        require(sum == 10000, "percent must sum to 10000");
+    }
+
+    function _performSwaps(
+        string calldata fromSymbol,
+        uint256 fromAmount,
+        string[] calldata toSymbols,
+        uint16[] calldata percentages
+    )
+        private
+        returns (address[] memory basketTokens, uint256[] memory basketAmounts)
+    {
+        basketTokens = new address[](toSymbols.length);
+        basketAmounts = new uint256[](toSymbols.length);
+
+        for (uint256 i = 0; i < toSymbols.length; i++) {
+            basketTokens[i] = tokens[toSymbols[i]];
+            uint256 preBalance = IERC20(basketTokens[i]).balanceOf(
+                address(this)
+            );
+
+            currencySwap.swapTokens(
+                fromSymbol,
+                toSymbols[i],
+                (fromAmount * percentages[i]) / 10000
+            );
+
+            basketAmounts[i] =
+                IERC20(basketTokens[i]).balanceOf(address(this)) -
+                preBalance;
+        }
     }
 }
