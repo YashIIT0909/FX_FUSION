@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
-import { Wallet, DollarSign, Euro, PoundSterling, JapaneseYen as Yen, Banknote, Coins } from 'lucide-react';
+import { Wallet, DollarSign, Euro, PoundSterling, JapaneseYen as Yen, Banknote, Coins, RefreshCw } from 'lucide-react';
 import { BrowserProvider, Contract, formatUnits } from 'ethers';
 import { Skeleton } from './skeleton';
 import { Button } from './button';
@@ -23,52 +23,99 @@ const tokenIcons: Record<string, JSX.Element> = {
     CHF: <Coins className="h-6 w-6 text-yellow-500" />,
 };
 
-// Contract addresses (replace with env variables if needed)
 const tokenContracts = [
-    { symbol: 'fUSD', address: process.env.NEXT_PUBLIC_fUSD_Token },
-    { symbol: 'fEUR', address: process.env.NEXT_PUBLIC_fEUR_Token },
-    { symbol: 'fGBP', address: process.env.NEXT_PUBLIC_fGBP_Token },
-    { symbol: 'fYEN', address: process.env.NEXT_PUBLIC_fYEN_Token },
-    { symbol: 'fINR', address: process.env.NEXT_PUBLIC_fINR_Token },
-    { symbol: 'fCHF', address: process.env.NEXT_PUBLIC_fCHF_Token },
+    { symbol: 'fUSD', address: process.env.NEXT_PUBLIC_fUSD_Token, displayName: 'USD' },
+    { symbol: 'fEUR', address: process.env.NEXT_PUBLIC_fEUR_Token, displayName: 'EUR' },
+    { symbol: 'fGBP', address: process.env.NEXT_PUBLIC_fGBP_Token, displayName: 'GBP' },
+    { symbol: 'fYEN', address: process.env.NEXT_PUBLIC_fYEN_Token, displayName: 'JPY' },
+    { symbol: 'fINR', address: process.env.NEXT_PUBLIC_fINR_Token, displayName: 'INR' },
+    { symbol: 'fCHF', address: process.env.NEXT_PUBLIC_fCHF_Token, displayName: 'CHF' },
 ];
 
-
-const erc20Abi = ["function balanceOf(address owner) view returns (uint256)"];
+const erc20Abi = [
+    "function balanceOf(address owner) view returns (uint256)"
+];
 
 export function YourTokens() {
     const { isConnected, address, connect } = useWalletStore();
     const { userBalances, setUserBalances } = useBasketStore();
     const [isLoading, setIsLoading] = useState(true);
 
+    // Debug environment variables
+    useEffect(() => {
+        console.log("🔧 Environment Variables Check:");
+        tokenContracts.forEach(token => {
+            console.log(`${token.symbol}: ${token.address || 'NOT SET'}`);
+        });
+    }, []);
+
     const fetchBalances = async (user: string) => {
         try {
             setIsLoading(true);
+            console.log("=== Fetching token balances for user:", user);
+            console.log("Available token contracts:", tokenContracts);
             const provider = new BrowserProvider(window.ethereum);
 
             const results = await Promise.all(
                 tokenContracts.map(async (token) => {
                     try {
                         if (!token.address) {
-                            console.error(`Address not found for ${token.symbol}`);
-                            return { symbol: token.symbol, balance: 0, eligible: false };
+                            console.warn(`⚠️ Address not found for ${token.symbol} - check environment variables`);
+                            return {
+                                symbol: token.symbol,
+                                displayName: token.displayName,
+                                balance: 0,
+                                eligible: false
+                            };
                         }
+
+                        console.log(`📊 Fetching balance for ${token.symbol} at ${token.address}`);
+
+                        // First check if there's code at this address
+                        const code = await provider.getCode(token.address);
+                        if (code === '0x') {
+                            console.warn(`⚠️ No contract found at ${token.address} for ${token.symbol}`);
+                            return {
+                                symbol: token.symbol,
+                                displayName: token.displayName,
+                                balance: 0,
+                                eligible: false
+                            };
+                        }
+
                         const contract = new Contract(token.address, erc20Abi, provider);
-                        const bal = await contract.balanceOf(user);
-                        console.log(bal)
-                        const balance = parseFloat(formatUnits(bal, 18));
-                        return { symbol: token.symbol, balance, eligible: balance > 0 };
+                        const balanceRaw = await contract.balanceOf(user);
+                        const balance = parseFloat(formatUnits(balanceRaw, 18));
+                        console.log(`✅ ${token.symbol} balance: ${balance} (raw: ${balanceRaw.toString()})`);
+
+                        return {
+                            symbol: token.symbol,
+                            displayName: token.displayName,
+                            balance,
+                            eligible: balance > 0
+                        };
                     } catch (err) {
-                        console.error(`Error fetching ${token.symbol} balance:`, err);
-                        return { symbol: token.symbol, balance: 0, eligible: false };
+                        console.error(`❌ Error fetching ${token.symbol} balance at ${token.address}:`, err);
+                        return {
+                            symbol: token.symbol,
+                            displayName: token.displayName,
+                            balance: 0,
+                            eligible: false
+                        };
                     }
                 })
             );
 
+            console.log("📊 All balances fetched:", results);
             setUserBalances(results);
         } catch (err) {
-            console.error("Error fetching balances:", err);
-            setUserBalances(tokenContracts.map(t => ({ symbol: t.symbol, balance: 0, eligible: false })));
+            console.error("❌ Error in fetchBalances:", err);
+            setUserBalances(tokenContracts.map(t => ({
+                symbol: t.symbol,
+                displayName: t.displayName,
+                balance: 0,
+                eligible: false
+            })));
         } finally {
             setIsLoading(false);
         }
@@ -88,9 +135,22 @@ export function YourTokens() {
     return (
         <Card className="bg-slate-800/50 border-slate-700">
             <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                    <Wallet className="h-5 w-5 mr-2 text-blue-500" />
-                    Your Tokens
+                <CardTitle className="text-white flex items-center justify-between">
+                    <div className="flex items-center">
+                        <Wallet className="h-5 w-5 mr-2 text-blue-500" />
+                        Your Tokens
+                    </div>
+                    {isConnected && address && (
+                        <Button
+                            onClick={() => fetchBalances(address)}
+                            variant="outline"
+                            size="sm"
+                            disabled={isLoading}
+                            className="bg-transparent border-slate-600 text-white hover:bg-slate-700"
+                        >
+                            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                        </Button>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent>

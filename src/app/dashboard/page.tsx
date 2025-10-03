@@ -10,7 +10,6 @@ import { Plus, TrendingUp, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LiquidityModal } from '@/src/components/ui/liquidity-modal';
 import { UserBaskets } from '@/src/components/ui/user-baskets';
 
 
@@ -110,10 +109,6 @@ export default function Dashboard() {
             <BuyTokensModal
                 isOpen={isBuyModalOpen}
                 onClose={() => setIsBuyModalOpen(false)}
-            />
-            <LiquidityModal
-                isOpen={isLiquidityModalOpen}
-                onClose={() => setIsLiquidityModalOpen(false)}
             />
         </div>
     );

@@ -124,7 +124,7 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     tokenSymbol: selectedToken,
-                    flowAmount: flowAmount,
+                    flowAmount: flowAmount, // This will be treated as ETH amount
                 }),
             });
 
@@ -133,7 +133,14 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
                 throw new Error(result.error || 'Failed to prepare transaction.');
             }
 
-            const { to, value, data } = result.data;
+            const { to, value, data, gasLimit } = result.data;
+
+            // Validate that we have transaction data
+            if (!data || data === "0x" || data === "") {
+                throw new Error('Invalid transaction data received from server');
+            }
+
+            console.log("Raw transaction data from API:", { to, value, data, gasLimit });
 
             // 2. Use the user's wallet to send the transaction
             if (!window.ethereum) {
@@ -141,9 +148,10 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
             }
 
             try {
+                // Switch to Ethereum Sepolia
                 await window.ethereum.request({
                     method: "wallet_switchEthereumChain",
-                    params: [{ chainId: "0x221" }],
+                    params: [{ chainId: "0xaa36a7" }], // Sepolia chain ID
                 });
             } catch (error) {
                 const switchError = error as EthereumError;
@@ -151,15 +159,15 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
                     await window.ethereum.request({
                         method: "wallet_addEthereumChain",
                         params: [{
-                            chainId: "0x221",
-                            chainName: "Flow EVM Testnet",
+                            chainId: "0xaa36a7", // Sepolia chain ID
+                            chainName: "Ethereum Sepolia",
                             nativeCurrency: {
-                                name: "Flow Testnet",
-                                symbol: "FLOWT",
+                                name: "Sepolia Ether",
+                                symbol: "SepoliaETH",
                                 decimals: 18,
                             },
-                            rpcUrls: ["https://testnet.evm.nodes.onflow.org"],
-                            blockExplorerUrls: ["https://evm-testnet.flowscan.io"],
+                            rpcUrls: ["https://rpc.sepolia.org"],
+                            blockExplorerUrls: ["https://sepolia.etherscan.io"],
                         }],
                     });
                 } else {
@@ -170,32 +178,65 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
             const provider = new ethers.BrowserProvider(window.ethereum);
             const signer = await provider.getSigner();
 
-            console.log(value)
-
-            const tx = await signer.sendTransaction({
+            // Prepare transaction object with proper data encoding
+            const transactionRequest = {
                 to: to,
                 value: value,
                 data: data,
-            });
+                gasLimit: gasLimit,
+            };
+
+            console.log("Final transaction request:", transactionRequest);
+
+            // Add gas estimation as fallback
+            let finalGasLimit = gasLimit;
+            try {
+                const estimatedGas = await provider.estimateGas(transactionRequest);
+                finalGasLimit = (estimatedGas * BigInt(120) / BigInt(100)).toString(); // 20% buffer
+                console.log("Estimated gas:", estimatedGas.toString(), "Final gas limit:", finalGasLimit);
+                transactionRequest.gasLimit = finalGasLimit;
+            } catch (gasError) {
+                console.warn("Gas estimation failed, using provided gas limit:", gasError);
+            }
+
+            const tx = await signer.sendTransaction(transactionRequest);
 
             setTransactionStatus({ success: false, message: `Transaction sent! Waiting for confirmation... Tx: ${tx.hash.substring(0, 10)}...` });
 
             // 3. Wait for the transaction to be confirmed
             const receipt = await tx.wait();
 
+            console.log("Transaction receipt:", receipt);
+
             if (receipt && receipt.status === 1) {
                 setTransactionStatus({ success: true, message: `Successfully purchased tokens! Tx: ${receipt.hash.substring(0, 10)}...` });
                 setTimeout(() => handleClose(), 5000);
             } else {
-                throw new Error('Transaction failed on-chain.');
+                throw new Error(`Transaction failed on-chain. Status: ${receipt?.status}. Hash: ${receipt?.hash}`);
             }
 
         } catch (error: any) {
             console.error('Failed to buy tokens:', error);
-            // Handle common errors like user rejecting the transaction
-            const errorMessage = error.code === 'ACTION_REJECTED'
-                ? 'Transaction rejected by user.'
-                : (error.message || 'An unknown error occurred.');
+
+            // Better error handling for different error types
+            let errorMessage = 'An unknown error occurred.';
+
+            if (error.code === 'ACTION_REJECTED') {
+                errorMessage = 'Transaction rejected by user.';
+            } else if (error.code === 'CALL_EXCEPTION') {
+                errorMessage = 'Contract call failed - the function may not exist or parameters are invalid.';
+            } else if (error.code === -32603) {
+                errorMessage = 'Transaction failed - check contract state and parameters.';
+            } else if (error.message?.includes('insufficient funds')) {
+                errorMessage = 'Insufficient ETH for transaction.';
+            } else if (error.message?.includes('execution reverted')) {
+                errorMessage = 'Contract execution failed - check token amounts and contract state.';
+            } else if (error.message?.includes('Invalid transaction data')) {
+                errorMessage = 'Invalid transaction data - please try again.';
+            } else {
+                errorMessage = error.message || errorMessage;
+            }
+
             setTransactionStatus({ success: false, message: errorMessage });
         } finally {
             setIsLoading(false);
@@ -212,7 +253,7 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
     };
 
     const currentRate = priceData?.conversionRates[selectedToken];
-    const flowUsdValue = flowAmount && priceData ? (parseFloat(flowAmount) * priceData.flowUsdPrice).toFixed(2) : '0';
+    const ethUsdValue = flowAmount && priceData ? (parseFloat(flowAmount) * priceData.flowUsdPrice).toFixed(2) : '0';
     const receivedUsdValue = receivedAmount && selectedToken !== 'USD' && priceData
         ? (parseFloat(receivedAmount) / (priceData.conversionRates[selectedToken] / priceData.flowUsdPrice)).toFixed(2)
         : receivedAmount;
@@ -258,7 +299,7 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
                             </div>
                         </div>
                         <div className="text-gray-400 text-sm mt-1">
-                            ${flowUsdValue}
+                            ${ethUsdValue}
                         </div>
                     </div>
 
@@ -314,7 +355,7 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
                     {/* Exchange Rate Info */}
                     {flowAmount && currentRate && (
                         <div className="text-center text-gray-400 text-sm">
-                            1 FLOW = {currentRate.toFixed(4)} {selectedToken}
+                            1 ETH = {currentRate.toFixed(4)} {selectedToken}
                         </div>
                     )}
 
