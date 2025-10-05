@@ -25,23 +25,15 @@ contract Facade {
         currencySwap.registerToken(symbol, tokenAddr, priceFeedId);
     }
 
-    function buyMockFiat(
-        string calldata nativeSymbol,
-        string calldata targetSymbol
-    ) external payable {
-        require(msg.value > 0, "send native currency");
-        uint256 nativeAmount = msg.value;
-
-        uint256 rateScaled = currencySwap.getExchangeRate(
-            nativeSymbol,
-            targetSymbol
+    // NEW: Simplified function for buying fiat tokens with ETH
+    function buyFiatWithETH(string calldata targetSymbol) external payable {
+        require(msg.value > 0, "send ETH");
+        require(
+            tokens[targetSymbol] != address(0),
+            "target token not registered"
         );
-        uint256 tokensToSend = (nativeAmount * rateScaled) / 1e18;
 
-        address targetTokenAddr = tokens[targetSymbol];
-        require(targetTokenAddr != address(0), "unregistered target");
-
-        ISwapToken(targetTokenAddr).swapTransfer(msg.sender, tokensToSend);
+        currencySwap.swapETHToToken{value: msg.value}(targetSymbol);
     }
 
     function swapTokens(

@@ -20,7 +20,7 @@ contract DeployScript is Script {
     function run() external {
         vm.startBroadcast();
 
-        // ===== STEP 1: DEPLOY CORE CONTRACTS ONLY (3 transactions) =====
+        // ===== STEP 1: DEPLOY CORE CONTRACTS =====
         CurrencySwap currencySwap = new CurrencySwap(PYTH_ADDRESS);
         console.log("CurrencySwap deployed at:", address(currencySwap));
 
@@ -34,14 +34,20 @@ contract DeployScript is Script {
         basketNFT.setFacade(address(facade));
         console.log("Facade set in BasketNFT");
 
-        // COMMENT OUT EVERYTHING BELOW FOR FIRST RUN
+        // ===== STEP 1.5: REGISTER ETH WITH ADDRESS(0) =====
+        facade.registerToken(
+            "ETH",
+            address(0), // ETH uses zero address
+            0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace // ETH/USD price feed
+        );
+        console.log("ETH registered with facade at address(0)");
 
-        // Define currencies with their Pyth price feed IDs
-        Currency[] memory currencies = new Currency[](7);
+        // ===== STEP 2: DEPLOY AND REGISTER FIAT TOKENS =====
+        Currency[] memory currencies = new Currency[](6);
         currencies[0] = Currency({
             name: "Fake US Dollar",
             symbol: "fUSD",
-            priceFeedId: 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace
+            priceFeedId: 0xeaa020c61cc479712813461ce153894a96a6c00b21fe15d5e9a76c78ddb9c50e
         });
         currencies[1] = Currency({
             name: "Fake Euro",
@@ -68,50 +74,36 @@ contract DeployScript is Script {
             symbol: "fINR",
             priceFeedId: 0x605d5c2fbd7cc4f5a28cd621202e20dfb1c7d335696b15c3e5027c0ac64bb1ab
         });
-        currencies[6] = Currency({
-            name: "Ethereum",
-            symbol: "ETH",
-            priceFeedId: 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace
-        });
 
-        address[] memory tokenAddresses = new address[](currencies.length);
-
+        // Deploy and register fiat tokens (excluding ETH)
         for (uint i = 0; i < currencies.length; i++) {
-            if (
-                keccak256(bytes(currencies[i].symbol)) !=
-                keccak256(bytes("ETH"))
-            ) {
-                MockFiatToken token = new MockFiatToken(
-                    currencies[i].name,
-                    currencies[i].symbol
-                );
+            // Deploy ERC20 token
+            MockFiatToken token = new MockFiatToken(
+                currencies[i].name,
+                currencies[i].symbol
+            );
 
-                token.setSwapContract(address(currencySwap));
-                tokenAddresses[i] = address(token);
+            token.setSwapContract(address(currencySwap));
 
-                console.log(
-                    string.concat(currencies[i].symbol, " deployed at:"),
-                    address(token)
-                );
+            console.log(
+                string.concat(currencies[i].symbol, " deployed at:"),
+                address(token)
+            );
 
-                facade.registerToken(
+            // Register the deployed token
+            facade.registerToken(
+                currencies[i].symbol,
+                address(token),
+                currencies[i].priceFeedId
+            );
+
+            console.log(
+                string.concat(
+                    "Registered ",
                     currencies[i].symbol,
-                    address(token),
-                    currencies[i].priceFeedId
-                );
-
-                console.log(
-                    string.concat(
-                        "Registered ",
-                        currencies[i].symbol,
-                        " with facade"
-                    )
-                );
-            } else {
-                console.log(
-                    "ETH registration skipped - handle native token separately"
-                );
-            }
+                    " with facade"
+                )
+            );
         }
 
         vm.stopBroadcast();
@@ -123,5 +115,13 @@ contract DeployScript is Script {
         console.log("BasketNFT:", address(basketNFT));
         console.log("Facade:", address(facade));
         console.log("Pyth Oracle:", PYTH_ADDRESS);
+
+        console.log("\n=== REGISTERED TOKENS ===");
+        console.log("ETH: address(0) - Native Sepolia ETH");
+        console.log("All fiat tokens deployed and registered");
+
+        console.log("\n=== USAGE ===");
+        console.log("Users send native Sepolia ETH to buy fiat tokens");
+        console.log("ETH is registered with address(0) for price feed access");
     }
 }

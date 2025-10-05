@@ -32,8 +32,10 @@ contract MockFiatToken is ERC20 {
         _transfer(from, address(this), amount);
     }
 
-    // (Optional) helper to inspect reserve balance
     function reserveBalance() external view returns (uint256) {
         return balanceOf(address(this));
     }
+
+    // Allow contract to receive ETH
+    receive() external payable {}
 }
