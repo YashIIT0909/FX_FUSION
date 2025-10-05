@@ -11,7 +11,8 @@ contract Facade {
 
     mapping(string => address) public tokens;
 
-    constructor(address currencySwapAddr, address basketNftAddr) {
+    // Fix: Change to payable address
+    constructor(address payable currencySwapAddr, address basketNftAddr) {
         currencySwap = CurrencySwap(currencySwapAddr);
         basketNft = BasketNFT(basketNftAddr);
     }
@@ -25,13 +26,24 @@ contract Facade {
         currencySwap.registerToken(symbol, tokenAddr, priceFeedId);
     }
 
+    // Add custom errors
+    error TokenNotRegistered(string symbol);
+    error InvalidAmount();
+
+    // Add receive function to accept ETH
+    receive() external payable {
+        // Contract can receive ETH
+    }
+
     // NEW: Simplified function for buying fiat tokens with ETH
     function buyFiatWithETH(string calldata targetSymbol) external payable {
-        require(msg.value > 0, "send ETH");
-        require(
-            tokens[targetSymbol] != address(0),
-            "target token not registered"
-        );
+        if (msg.value == 0) {
+            revert InvalidAmount();
+        }
+
+        if (tokens[targetSymbol] == address(0)) {
+            revert TokenNotRegistered(targetSymbol);
+        }
 
         currencySwap.swapETHToToken{value: msg.value}(targetSymbol);
     }

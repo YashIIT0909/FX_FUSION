@@ -39,13 +39,11 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
     const [transactionStatus, setTransactionStatus] = useState<{ success: boolean; message: string } | null>(null);
 
     const availableTokens = [
-        { symbol: 'USDC', name: 'USD Coin' },
-        { symbol: 'INR', name: 'Indian Rupee' },
-        { symbol: 'EUR', name: 'Euro' },
-        { symbol: 'GBP', name: 'British Pound' },
-        { symbol: 'JPY', name: 'Japanese Yen' },
-        { symbol: 'CHF', name: 'Swiss Franc' },
-        { symbol: 'USD', name: 'US Dollar' },
+        { symbol: 'USDC', name: 'USD Coin' },     // maps to fUSD
+        { symbol: 'EUR', name: 'Euro' },          // maps to fEUR  
+        { symbol: 'GBP', name: 'British Pound' }, // maps to fGBP
+        { symbol: 'JPY', name: 'Japanese Yen' },  // maps to fYEN
+        // Remove CHF and INR for now since they're not working
     ];
 
     // Fetch price data when modal opens
@@ -148,10 +146,10 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
             }
 
             try {
-                // Switch to Ethereum Sepolia
+                // Switch to Base Sepolia
                 await window.ethereum.request({
                     method: "wallet_switchEthereumChain",
-                    params: [{ chainId: "0xaa36a7" }], // Sepolia chain ID
+                    params: [{ chainId: "0x14a34" }], // Base Sepolia chain ID (84532)
                 });
             } catch (error) {
                 const switchError = error as EthereumError;
@@ -159,15 +157,15 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
                     await window.ethereum.request({
                         method: "wallet_addEthereumChain",
                         params: [{
-                            chainId: "0xaa36a7", // Sepolia chain ID
-                            chainName: "Ethereum Sepolia",
+                            chainId: "0x14a34", // Base Sepolia chain ID
+                            chainName: "Base Sepolia",
                             nativeCurrency: {
-                                name: "Sepolia Ether",
-                                symbol: "SepoliaETH",
+                                name: "Ethereum",
+                                symbol: "ETH",
                                 decimals: 18,
                             },
-                            rpcUrls: ["https://rpc.sepolia.org"],
-                            blockExplorerUrls: ["https://sepolia.etherscan.io"],
+                            rpcUrls: ["https://sepolia.base.org"],
+                            blockExplorerUrls: ["https://sepolia-explorer.base.org"],
                         }],
                     });
                 } else {
