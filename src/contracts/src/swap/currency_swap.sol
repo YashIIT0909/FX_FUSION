@@ -157,7 +157,17 @@ contract CurrencySwap {
             }
 
             // ETH price / target price = how many target tokens per ETH
-            rateScaled = (uint256(ethPrice) * SCALE) / uint256(targetPrice);
+            if (
+                keccak256(bytes(targetSymbol)) == keccak256(bytes("fYEN")) ||
+                keccak256(bytes(targetSymbol)) == keccak256(bytes("fINR")) ||
+                keccak256(bytes(targetSymbol)) == keccak256(bytes("fCHF"))
+            ) {
+                // For these, multiply instead of divide
+                rateScaled = (uint256(ethPrice) * uint256(targetPrice)) / SCALE;
+            } else {
+                // For EUR, GBP, USD - divide as normal
+                rateScaled = (uint256(ethPrice) * SCALE) / uint256(targetPrice);
+            }
         }
     }
 

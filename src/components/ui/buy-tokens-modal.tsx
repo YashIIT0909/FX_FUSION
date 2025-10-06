@@ -5,7 +5,7 @@ import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/src/components/ui/select';
 import { Dialog, DialogContent } from '@/src/components/ui/dialog';
-import { ArrowDown, ChevronDown, Loader2 } from 'lucide-react';
+import { ArrowDown, ChevronDown, Loader2, X, Zap, TrendingUp } from 'lucide-react';
 import { ethers } from 'ethers';
 
 interface BuyTokensModalProps {
@@ -39,11 +39,10 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
     const [transactionStatus, setTransactionStatus] = useState<{ success: boolean; message: string } | null>(null);
 
     const availableTokens = [
-        { symbol: 'USDC', name: 'USD Coin' },     // maps to fUSD
-        { symbol: 'EUR', name: 'Euro' },          // maps to fEUR  
-        { symbol: 'GBP', name: 'British Pound' }, // maps to fGBP
-        { symbol: 'JPY', name: 'Japanese Yen' },  // maps to fYEN
-        // Remove CHF and INR for now since they're not working
+        { symbol: 'USDC', name: 'USD Coin', color: 'from-blue-500 to-blue-600', emoji: '💵' },
+        { symbol: 'EUR', name: 'Euro', color: 'from-purple-500 to-purple-600', emoji: '💶' },
+        { symbol: 'GBP', name: 'British Pound', color: 'from-green-500 to-green-600', emoji: '💷' },
+        { symbol: 'JPY', name: 'Japanese Yen', color: 'from-red-500 to-red-600', emoji: '💴' },
     ];
 
     // Fetch price data when modal opens
@@ -95,7 +94,7 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
         }
     };
 
-    // Calculate received amount when flow amount or token changes
+    // Calculate received amount when ETH amount or token changes
     useEffect(() => {
         if (flowAmount && selectedToken && priceData) {
             const rate = priceData.conversionRates[selectedToken];
@@ -256,111 +255,194 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
         ? (parseFloat(receivedAmount) / (priceData.conversionRates[selectedToken] / priceData.flowUsdPrice)).toFixed(2)
         : receivedAmount;
 
+    const selectedTokenData = availableTokens.find(token => token.symbol === selectedToken);
+
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md p-6 rounded-2xl">
-                <div className="space-y-4">
+            <DialogContent
+                className="bg-gradient-to-br from-gray-900 via-slate-900 to-gray-900 border-gray-700/50 text-white max-w-lg p-0 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl [&>button]:hidden [&>[data-dialog-close]]:hidden"
+            >
+                {/* Header */}
+                <div className="relative p-6 pb-4">
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-cyan-600/20 rounded-t-3xl"></div>
+                    <div className="relative flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                            <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl">
+                                <Zap className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                                    Swap Tokens
+                                </h2>
+                                <p className="text-sm text-gray-400">Lightning fast • Secure • Decentralized</p>
+                            </div>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleClose}
+                            className="text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-full p-2 h-8 w-8 flex items-center justify-center relative z-50"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="px-6 pb-6 space-y-6">
                     {/* Loading indicator for prices */}
                     {isLoadingPrices && (
-                        <div className="flex items-center justify-center py-2">
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            <span className="text-gray-400 text-sm">Loading live rates...</span>
+                        <div className="flex items-center justify-center py-3 bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-2xl border border-blue-500/20">
+                            <Loader2 className="h-4 w-4 animate-spin mr-2 text-blue-400" />
+                            <span className="text-blue-400 text-sm font-medium">Fetching live rates...</span>
                         </div>
                     )}
 
                     {/* Price data error indicator */}
                     {priceData?.error && (
-                        <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-2">
-                            <p className="text-yellow-400 text-xs text-center">{priceData.error}</p>
+                        <div className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border border-yellow-600/30 rounded-2xl p-3 backdrop-blur-sm">
+                            <div className="flex items-center space-x-2">
+                                <TrendingUp className="h-4 w-4 text-yellow-400" />
+                                <p className="text-yellow-400 text-sm font-medium">{priceData.error}</p>
+                            </div>
                         </div>
                     )}
 
-                    {/* Sell Section */}
-                    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-gray-400 text-sm">Sell</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <Input
-                                type="number"
-                                value={flowAmount}
-                                onChange={(e) => setFlowAmount(e.target.value)}
-                                placeholder="0"
-                                className="bg-transparent border-none text-2xl font-semibold text-white p-0 h-auto focus:ring-0 flex-1"
-                                disabled={isLoading || isLoadingPrices}
-                            />
-                            <div className="flex items-center bg-gray-700 rounded-full px-3 py-2 ml-4">
-                                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2">
-                                    <span className="text-white text-xs font-bold">F</span>
+                    {/* Trading Section with Arrow Between */}
+                    <div className="relative">
+                        {/* Sell Section */}
+                        <div className="relative group">
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300 opacity-50"></div>
+                            <div className="relative bg-gray-800/80 backdrop-blur-xl rounded-t-2xl p-6 border border-gray-700/50 hover:border-gray-600/50 transition-all duration-300 h-40">
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-gray-400 text-sm font-medium flex items-center">
+                                        <span className="w-2 h-2 bg-red-400 rounded-full mr-2 animate-pulse"></span>
+                                        You Pay
+                                    </span>
+                                    <span className="text-xs text-gray-500 bg-gray-700/50 px-2 py-1 rounded-full">
+                                        Balance: 0.00 ETH
+                                    </span>
                                 </div>
-                                <span className="text-white font-medium">FLOW</span>
-                            </div>
-                        </div>
-                        <div className="text-gray-400 text-sm mt-1">
-                            ${ethUsdValue}
-                        </div>
-                    </div>
-
-                    {/* Arrow Down */}
-                    <div className="flex justify-center">
-                        <div className="bg-gray-700 rounded-full p-2">
-                            <ArrowDown className="h-4 w-4 text-gray-400" />
-                        </div>
-                    </div>
-
-                    {/* Buy Section */}
-                    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-gray-400 text-sm">Buy</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <div className="text-2xl font-semibold text-white flex-1">
-                                {receivedAmount || '0'}
-                            </div>
-                            <Select
-                                value={selectedToken}
-                                onValueChange={setSelectedToken}
-                                disabled={isLoading || isLoadingPrices}
-                            >
-                                <SelectTrigger className="bg-gray-700 border-none rounded-full px-3 py-2 w-auto ml-4 [&>svg]:hidden">
-                                    <div className="flex items-center">
-                                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2">
-                                            <span className="text-white text-xs font-bold">$</span>
+                                <div className="flex justify-between items-center">
+                                    <Input
+                                        type="number"
+                                        value={flowAmount}
+                                        onChange={(e) => setFlowAmount(e.target.value)}
+                                        placeholder="0.00"
+                                        className="bg-transparent border-none text-3xl font-bold text-white p-0 h-auto focus:ring-0 flex-1 placeholder:text-gray-600"
+                                        disabled={isLoading || isLoadingPrices}
+                                    />
+                                    <div className="flex items-center bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl px-4 py-3 ml-4 shadow-lg hover:shadow-blue-500/25 transition-all duration-300">
+                                        <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mr-3 shadow-inner">
+                                            <span className="text-white text-sm font-bold">Ξ</span>
                                         </div>
-                                        <span className="text-white font-medium mr-1">{selectedToken}</span>
-                                        <ChevronDown className="h-4 w-4 text-gray-400" />
+                                        <div className="text-left">
+                                            <div className="text-white font-bold text-sm">ETH</div>
+                                            <div className="text-blue-200 text-xs">Base Sepolia</div>
+                                        </div>
                                     </div>
-                                </SelectTrigger>
-                                <SelectContent className="bg-gray-800 border-gray-700">
-                                    {availableTokens.map((token) => (
-                                        <SelectItem key={token.symbol} value={token.symbol} className="text-white hover:bg-gray-700">
-                                            <div className="flex items-center">
-                                                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2">
-                                                    <span className="text-white text-xs font-bold">$</span>
-                                                </div>
-                                                <span>{token.symbol}</span>
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                </div>
+                                <div className="text-gray-400 text-sm mt-3 flex items-center">
+                                    <span className="mr-2">≈</span>
+                                    <span className="font-medium">${ethUsdValue}</span>
+                                </div>
+                            </div>
                         </div>
-                        <div className="text-gray-400 text-sm mt-1">
-                            ${selectedToken === 'USD' ? receivedAmount || '0' : receivedUsdValue}
+
+                        {/* Swap Arrow - Positioned between boxes */}
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+                            <div className="bg-gray-700 rounded-xl p-3 border border-gray-600">
+                                <ArrowDown className="h-5 w-5 text-gray-300" />
+                            </div>
+                        </div>
+
+                        {/* Buy Section */}
+                        <div className="relative group">
+                            <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 to-emerald-600/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300 opacity-50"></div>
+                            <div className="relative bg-gray-800/80 backdrop-blur-xl rounded-b-2xl p-6 border border-gray-700/50 border-t-0 hover:border-gray-600/50 transition-all duration-300 h-40">
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-gray-400 text-sm font-medium flex items-center">
+                                        <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
+                                        You Receive
+                                    </span>
+                                    <span className="text-xs text-gray-500 bg-gray-700/50 px-2 py-1 rounded-full">
+                                        Balance: 0.00 {selectedToken}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <div className="text-3xl font-bold text-white flex-1">
+                                        {receivedAmount || '0.00'}
+                                    </div>
+                                    <Select
+                                        value={selectedToken}
+                                        onValueChange={setSelectedToken}
+                                        disabled={isLoading || isLoadingPrices}
+                                    >
+                                        <SelectTrigger className="bg-gradient-to-r from-gray-700 to-gray-600 border-none rounded-2xl px-4 py-3 w-auto ml-4 [&>svg]:hidden shadow-lg hover:shadow-gray-500/25 transition-all duration-300">
+                                            <div className="flex items-center">
+                                                <div className={`w-8 h-8 bg-gradient-to-r ${selectedTokenData?.color} rounded-full flex items-center justify-center mr-3 shadow-inner`}>
+                                                    <span className="text-white text-lg">{selectedTokenData?.emoji || '💰'}</span>
+                                                </div>
+                                                <div className="text-left mr-2">
+                                                    <div className="text-white font-bold text-sm">{selectedToken}</div>
+                                                    <div className="text-gray-300 text-xs">{selectedTokenData?.name}</div>
+                                                </div>
+                                                <ChevronDown className="h-4 w-4 text-gray-300" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-gray-800/95 backdrop-blur-xl border-gray-700 rounded-2xl shadow-2xl">
+                                            {availableTokens.map((token) => (
+                                                <SelectItem
+                                                    key={token.symbol}
+                                                    value={token.symbol}
+                                                    className="text-white hover:bg-gray-700/50 rounded-xl m-1 transition-all duration-200"
+                                                >
+                                                    <div className="flex items-center">
+                                                        <div className={`w-8 h-8 bg-gradient-to-r ${token.color} rounded-full flex items-center justify-center mr-3 shadow-inner`}>
+                                                            <span className="text-white text-lg">{token.emoji}</span>
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <div className="font-bold">{token.symbol}</div>
+                                                            <div className="text-xs text-gray-400">{token.name}</div>
+                                                        </div>
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="text-gray-400 text-sm mt-3 flex items-center">
+                                    <span className="mr-2">≈</span>
+                                    <span className="font-medium">${selectedToken === 'USD' ? receivedAmount || '0.00' : receivedUsdValue}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     {/* Exchange Rate Info */}
                     {flowAmount && currentRate && (
-                        <div className="text-center text-gray-400 text-sm">
-                            1 ETH = {currentRate.toFixed(4)} {selectedToken}
+                        <div className="text-center bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm rounded-2xl p-3 border border-gray-600/30">
+                            <div className="text-gray-300 text-sm">
+                                <span className="font-medium">Rate:</span> 1 ETH = {currentRate.toFixed(4)} {selectedToken}
+                            </div>
                         </div>
                     )}
 
                     {/* Transaction Status */}
                     {transactionStatus && (
-                        <div className={`rounded-lg p-3 text-center text-sm ${transactionStatus.success ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
-                            {transactionStatus.message}
+                        <div className={`rounded-2xl p-4 text-center text-sm border backdrop-blur-sm transition-all duration-300 ${transactionStatus.success
+                            ? 'bg-gradient-to-r from-green-900/40 to-emerald-900/40 text-green-400 border-green-500/30 shadow-green-500/20'
+                            : 'bg-gradient-to-r from-red-900/40 to-rose-900/40 text-red-400 border-red-500/30 shadow-red-500/20'
+                            } shadow-lg`}>
+                            <div className="flex items-center justify-center space-x-2">
+                                {transactionStatus.success ? (
+                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-xs">✓</span>
+                                    </div>
+                                ) : (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                )}
+                                <span className="font-medium">{transactionStatus.message}</span>
+                            </div>
                         </div>
                     )}
 
@@ -368,17 +450,26 @@ export function BuyTokensModal({ isOpen, onClose }: BuyTokensModalProps) {
                     <Button
                         onClick={handleSubmit}
                         disabled={!flowAmount || !selectedToken || isLoading || isLoadingPrices}
-                        className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-4 rounded-xl text-lg font-semibold"
+                        className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 hover:from-blue-700 hover:via-purple-700 hover:to-cyan-700 text-white py-6 rounded-2xl text-lg font-bold shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                     >
                         {isLoading ? (
-                            <>
-                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                                Processing...
-                            </>
+                            <div className="flex items-center justify-center space-x-3">
+                                <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent"></div>
+                                <span>Processing Transaction...</span>
+                            </div>
                         ) : (
-                            'Get Tokens'
+                            <div className="flex items-center justify-center space-x-2">
+                                <Zap className="h-5 w-5" />
+                                <span>Swap Tokens</span>
+                            </div>
                         )}
                     </Button>
+
+                    {/* Footer Info */}
+                    <div className="text-center text-xs text-gray-500 space-y-1">
+                        <p>🔒 Powered by Base Sepolia • Gas fees apply</p>
+                        <p>⚡ Transactions typically confirm in ~2 minutes</p>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
