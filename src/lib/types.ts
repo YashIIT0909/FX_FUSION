@@ -1,5 +1,6 @@
 export interface Basket {
     id: string;
+    tokenId: number; // Add tokenId to track NFT
     name: string;
     description: string;
     tokens: TokenAllocation[];
@@ -9,6 +10,7 @@ export interface Basket {
     lockDuration: number;
     creator: string;
     isPublic: boolean;
+    transactionHash?: string; // Add transaction hash
 }
 
 export interface TokenAllocation {
@@ -18,13 +20,13 @@ export interface TokenAllocation {
     currentPrice: number;
     pnl: number;
     pnlPercentage: number;
+    tokenAddress: string; // Add token address
 }
 
 export interface PriceData {
     symbol: string;
     price: number;
     change24h: number;
-    // lastUpdated: Date; // REMOVED
 }
 
 export interface UserBalance {
@@ -38,4 +40,13 @@ export interface PnlDataPoint {
     timestamp: string;
     value: number;
     pnl: number;
+}
+
+// Add new interface for blockchain basket data
+export interface BlockchainBasket {
+    tokenId: number;
+    owner: string;
+    tokens: string[];
+    amounts: string[];
+    metadataURI?: string;
 }

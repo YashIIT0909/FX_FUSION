@@ -2,7 +2,7 @@
 
 import { Basket } from '@/src/lib/types';
 import { Button } from './button';
-import { TrendingUp, TrendingDown, Users, Clock, DollarSign } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Clock, DollarSign, Hash } from 'lucide-react';
 import Link from 'next/link';
 
 interface BasketCardProps {
@@ -17,8 +17,13 @@ export function BasketCard({ basket, showCreator = true, variant = 'default' }: 
     return (
         <div className="bg-slate-800/50 rounded-lg border border-slate-700 p-6 hover:border-slate-600 transition-colors">
             <div className="flex items-start justify-between mb-4">
-                <div>
-                    <h3 className="text-lg font-semibold text-white mb-1">{basket.name}</h3>
+                <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-semibold text-white">{basket.name}</h3>
+                        <span className="text-xs text-gray-500 bg-slate-700 px-2 py-1 rounded">
+                            #{basket.tokenId}
+                        </span>
+                    </div>
                     <p className="text-sm text-gray-400 line-clamp-2">{basket.description}</p>
                 </div>
                 <div className={`flex items-center space-x-1 px-2 py-1 rounded ${isPositive ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
@@ -34,12 +39,12 @@ export function BasketCard({ basket, showCreator = true, variant = 'default' }: 
                 <div className="space-y-3 mb-4">
                     <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-400">Total Value</span>
-                        <span className="text-white font-medium">${basket.totalValue.toLocaleString()}</span>
+                        <span className="text-white font-medium">{basket.totalValue.toFixed(4)} tokens</span>
                     </div>
 
                     <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400">Tokens</span>
-                        <span className="text-white">{basket.tokens.length} currencies</span>
+                        <span className="text-gray-400">Currencies</span>
+                        <span className="text-white">{basket.tokens.length} tokens</span>
                     </div>
 
                     <div className="flex items-center justify-between text-sm">
@@ -53,7 +58,9 @@ export function BasketCard({ basket, showCreator = true, variant = 'default' }: 
                     {showCreator && (
                         <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-400">Creator</span>
-                            <span className="text-white font-mono text-xs">{basket.creator}</span>
+                            <span className="text-white font-mono text-xs">
+                                {basket.creator.slice(0, 6)}...{basket.creator.slice(-4)}
+                            </span>
                         </div>
                     )}
                 </div>
@@ -64,8 +71,9 @@ export function BasketCard({ basket, showCreator = true, variant = 'default' }: 
                     <span
                         key={token.symbol}
                         className="px-2 py-1 bg-slate-700 text-xs text-gray-300 rounded"
+                        title={`${token.amount.toFixed(4)} ${token.symbol}`}
                     >
-                        {token.symbol} {token.weight}%
+                        {token.symbol.replace('f', '')} {token.weight.toFixed(1)}%
                     </span>
                 ))}
                 {basket.tokens.length > 4 && (
@@ -75,7 +83,7 @@ export function BasketCard({ basket, showCreator = true, variant = 'default' }: 
                 )}
             </div>
 
-            <Link href={`/baskets/${basket.id}`}>
+            <Link href={`/baskets/${basket.tokenId}`}>
                 <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                     View Details
                 </Button>

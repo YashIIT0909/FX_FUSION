@@ -6,18 +6,16 @@ import { BasketCard } from '@/src/components/ui/basket-card';
 import { BuyTokensModal } from '@/src/components/ui/buy-tokens-modal';
 import { YourTokens } from '@/src/components/ui/your-tokens';
 import { Button } from '@/src/components/ui/button';
-import { Plus, TrendingUp, ShoppingCart } from 'lucide-react';
+import { Plus, TrendingUp, ShoppingCart, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { UserBaskets } from '@/src/components/ui/user-baskets';
-
 
 export default function Dashboard() {
-    const isConnected = useWalletStore(state => state.isConnected);
-    const { userBaskets } = useBasketStore();
+    const { isConnected, address, signer } = useWalletStore();
+    const { userBaskets, isLoadingBaskets, loadUserBaskets } = useBasketStore();
     const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
-
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     useEffect(() => {
         if (!isConnected) {
@@ -25,8 +23,28 @@ export default function Dashboard() {
         }
     }, [isConnected]);
 
+    useEffect(() => {
+        // Load baskets when wallet connects
+        if (isConnected && address && signer && userBaskets.length === 0) {
+            loadUserBaskets(address, signer);
+        }
+    }, [isConnected, address, signer]);
+
+    const handleRefreshBaskets = async () => {
+        if (!address || !signer) return;
+
+        setIsRefreshing(true);
+        try {
+            await loadUserBaskets(address, signer);
+        } catch (error) {
+            console.error('Error refreshing baskets:', error);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
     if (!isConnected) {
-        return null; // Will redirect
+        return null;
     }
 
     return (
@@ -41,13 +59,21 @@ export default function Dashboard() {
                         </div>
                         <div className="mt-4 md:mt-0 flex items-center gap-4">
                             <Button
+                                onClick={handleRefreshBaskets}
+                                disabled={isRefreshing}
+                                variant="outline"
+                                className="border-slate-700 text-gray-300 hover:text-white hover:bg-slate-800"
+                            >
+                                <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                Refresh
+                            </Button>
+                            <Button
                                 onClick={() => setIsBuyModalOpen(true)}
                                 className="bg-green-600 hover:bg-green-700 text-white"
                             >
                                 <ShoppingCart className="w-4 h-4 mr-2" />
                                 Buy Tokens
                             </Button>
-
                         </div>
                     </div>
                 </div>
@@ -72,10 +98,16 @@ export default function Dashboard() {
                         </Link>
                     </div>
 
-                    {userBaskets.length === 0 ? (
+                    {isLoadingBaskets ? (
+                        <div className="bg-slate-800/50 rounded-lg border border-slate-700 p-12 text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                            <h3 className="text-xl font-semibold text-white mb-2">Loading your baskets...</h3>
+                            <p className="text-gray-400">Fetching data from blockchain</p>
+                        </div>
+                    ) : userBaskets.length === 0 ? (
                         <div className="bg-slate-800/50 rounded-lg border border-slate-700 p-12 text-center">
                             <TrendingUp className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-                            <h3 className="text-xl font-semibold text-white mb-2">No baskets minted yet</h3>
+                            <h3 className="text-xl font-semibold text-white mb-2">No baskets created yet</h3>
                             <p className="text-gray-400 mb-6">
                                 Create your first currency basket to start tracking performance
                             </p>
@@ -94,9 +126,6 @@ export default function Dashboard() {
                         </div>
                     )}
                 </section>
-
-                {/* Public Baskets Section */}
-
             </div>
 
             {/* Buy Tokens Modal */}

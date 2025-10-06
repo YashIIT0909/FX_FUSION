@@ -14,41 +14,22 @@ import { useEffect, useState } from 'react';
 import { UserBalance, Basket, TokenAllocation } from '@/src/lib/types';
 import { YourTokens } from '@/src/components/ui/your-tokens';
 import { BrowserProvider, Contract, parseUnits } from 'ethers';
-import AppContract from '@/src/contracts/out/facade.sol/Facade.json'; // Assuming you have the ABI here
+import FacadeContract from '@/src/contracts/out/facade.sol/Facade.json';
 
 const ERC20_ABI = ["function approve(address spender, uint256 amount) public returns (bool)"];
 
-const ALL_TOKENS = ['fUSD', 'fEUR', 'fGBP', 'fYEN', 'fINR', 'fCHF'];
-
-// Pyth Contract Address from App.sol
-const PYTH_CONTRACT_ADDRESS = "0x2880aB155794e7179c9eE2e38200202908C17B43";
-const PYTH_ABI = ["function getUpdateFee(bytes[] calldata updateData) external view returns (uint256 feeAmount)"];
-
-// Pyth Price Feed IDs from your App.sol contract
-const PYTH_PRICE_IDS: Record<string, string> = {
-    fCHF: '0x0b1e3297e69f162877b577b0d6a47a0d63b2392bc8499e6540da4187a63e28f8', // USD_CHF
-    fEUR: '0xa995d00bb36a63cef7fd2c287dc105fc8f3d93779f062f09551b0af3e81ec30b', // EUR_USD
-    fGBP: '0x84c2dde9633d93d1bcad84e7dc41c9d56578b7ec52fabedc1f335d673df0a7c1', // GBP_USD
-    fINR: '0x0ac0f9a2886fc2dd708bc66cc2cea359052ce89d324f45d95fadbc6c4fcf1809', // USD_INR
-    fUSD: '0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a', // USDC_USD
-
-    fYEN: '0xef2c98c804ba503c6a707e38be4dfbb16683775f195b091252bf24693042fd52', // USD_YEN
-};
-
-const PYTH_HERMES_URL = "https://hermes.pyth.network";
+const ALL_TOKENS = ['fUSD', 'fEUR', 'fGBP', 'fYEN'];
 
 const TOKEN_ADDRESSES: Record<string, string | undefined> = {
-    fCHF: process.env.NEXT_PUBLIC_fCHF_Token,
     fEUR: process.env.NEXT_PUBLIC_fEUR_Token,
     fGBP: process.env.NEXT_PUBLIC_fGBP_Token,
-    fINR: process.env.NEXT_PUBLIC_fINR_Token,
     fUSD: process.env.NEXT_PUBLIC_fUSD_Token,
     fYEN: process.env.NEXT_PUBLIC_fYEN_Token,
 };
 
 export default function CreateBasket() {
-    const { isConnected, signer } = useWalletStore();
-    const { userBalances, addBasket } = useBasketStore();
+    const { isConnected, signer, address } = useWalletStore();
+    const { userBalances, loadUserBaskets } = useBasketStore();
     const router = useRouter();
 
     const [formData, setFormData] = useState({
@@ -101,14 +82,14 @@ export default function CreateBasket() {
         setIsSubmitting(true);
 
         try {
-            if (!signer) {
+            if (!signer || !address) {
                 throw new Error("Wallet is not connected or signer is not available.");
             }
 
-            const appContractAddress = process.env.NEXT_PUBLIC_App;
+            const facadeContractAddress = process.env.NEXT_PUBLIC_FACADE_CONTRACT;
 
-            if (!appContractAddress) {
-                throw new Error("App contract address is not configured.");
+            if (!facadeContractAddress) {
+                throw new Error("Facade contract address is not configured.");
             }
 
             // --- START: APPROVAL LOGIC ---
@@ -120,79 +101,53 @@ export default function CreateBasket() {
             const tokenContract = new Contract(initialTokenAddress, ERC20_ABI, signer);
             const _inputAmount = parseUnits(initialAmount.toString(), 18);
 
-            console.log(`Approving ${appContractAddress} to spend ${_inputAmount.toString()} of ${initialToken}`);
-            const approveTx = await tokenContract.approve(appContractAddress, _inputAmount);
-            await approveTx.wait(); // Wait for approval to be mined
+            console.log(`Approving ${facadeContractAddress} to spend ${_inputAmount.toString()} of ${initialToken}`);
+            const approveTx = await tokenContract.approve(facadeContractAddress, _inputAmount);
+            await approveTx.wait();
             console.log('Approval successful');
             // --- END: APPROVAL LOGIC ---
 
-            const contract = new Contract(appContractAddress, AppContract.abi, signer);
-            const pythContract = new Contract(PYTH_CONTRACT_ADDRESS, PYTH_ABI, signer);
+            const contract = new Contract(facadeContractAddress, FacadeContract.abi, signer);
 
-            // 1. Prepare parameters for executeBasket
-            const _inputTokenName = initialToken;
-            // const _inputAmount = parseUnits(initialAmount.toString(), 18); // Already defined above
-            const _outputTokenNames = allocations.map(a => a.symbol);
-            const _outputPercentages = allocations.map(a => a.percentage * 100); // Convert 0-100 scale to 0-10000 for contract
-            const _basket_lockout_period = formData.lockDuration * 24 * 60 * 60; // Convert days to seconds
+            // 1. Prepare parameters for mintBasketFromToken
+            const _fromSymbol = initialToken;
+            const _fromAmount = _inputAmount;
+            const _toSymbols = allocations.map(a => a.symbol);
+            // Convert percentages from 0-100 scale to 0-10000 for contract (basis points)
+            const _percentages = allocations.map(a => a.percentage * 100);
 
-            // 2. Construct JSON metadata
+            // 2. Construct JSON metadata URI
             const metadata = {
                 name: formData.name,
                 description: formData.description,
-                initialToken: _inputTokenName,
+                initialToken: _fromSymbol,
                 initialAmount: initialAmount.toString(),
                 allocations: allocations,
+                lockDuration: formData.lockDuration,
+                createdAt: new Date().toISOString(),
             };
-            const _jsonMetadata = `data:application/json;base64,${btoa(JSON.stringify(metadata))}`;
+            const _metadataURI = `data:application/json;base64,${btoa(JSON.stringify(metadata))}`;
 
-            // 3. Fetch Pyth updateData
-            const allInvolvedTokens = Array.from(new Set([_inputTokenName, ..._outputTokenNames]));
-            const priceIds = allInvolvedTokens.map(token => PYTH_PRICE_IDS[token]);
-            const priceUpdateData = await (await fetch(`${PYTH_HERMES_URL}/api/latest_vaas?ids[]=${priceIds.join('&ids[]=')}`)).json();
-            const _updateData = priceUpdateData.map((v: string) => "0x" + Buffer.from(v, 'base64').toString('hex'));
-
-            // 4. Get Pyth fee and call the contract
-            const pythFee = await pythContract.getUpdateFee(_updateData);
-            const tx = await contract.executeBasket(
-                _inputTokenName,
-                _inputAmount,
-                _outputTokenNames,
-                _outputPercentages,
-                _basket_lockout_period,
-                _jsonMetadata,
-                _updateData,
-                { value: pythFee } // Send fee as msg.value
+            // 3. Call mintBasketFromToken
+            const tx = await contract.mintBasketFromToken(
+                _fromSymbol,
+                _fromAmount,
+                _toSymbols,
+                _percentages,
+                _metadataURI
             );
 
-            await tx.wait(); // Wait for transaction to be mined
+            const receipt = await tx.wait();
+            console.log('Basket creation successful:', receipt);
 
-            // This part can be removed if the contract is the source of truth
-            // Or updated to reflect the on-chain reality after creation
-            const newBasket: Basket = {
-                id: `user-basket-${Date.now()}`, // This should ideally come from a contract event
-                name: formData.name,
-                description: formData.description,
-                tokens: allocations.map(a => ({
-                    symbol: a.symbol,
-                    weight: a.percentage,
-                    amount: (initialAmount * a.percentage) / 100,
-                    currentPrice: 1, pnl: 0, pnlPercentage: 0
-                })),
-                performance: 0,
-                totalValue: initialAmount,
-                createdAt: new Date().toISOString(),
-                lockDuration: formData.lockDuration,
-                creator: await signer.getAddress(),
-                isPublic: false,
-            };
-            addBasket(newBasket);
+            // Reload user baskets from blockchain instead of adding to local state
+            await loadUserBaskets(address, signer);
 
             router.push('/dashboard');
 
         } catch (error) {
             console.error('Failed to create basket:', error);
-            // You can add user-friendly error notifications here
+            // Add user-friendly error notifications here
         } finally {
             setIsSubmitting(false);
         }
@@ -201,7 +156,6 @@ export default function CreateBasket() {
     // Update allocation
     const updateAllocation = (index: number, value: string) => {
         const updated = [...allocations];
-        // Use parseInt to avoid floating point issues and handle empty input
         updated[index].percentage = value === '' ? 0 : parseInt(value, 10);
         setAllocations(updated);
     };
@@ -400,7 +354,6 @@ export default function CreateBasket() {
                                                     max={100 - (totalPercentage - alloc.percentage)}
                                                     className="bg-slate-800 border-slate-600 text-white"
                                                 />
-
                                             </div>
                                             <Button
                                                 type="button"
