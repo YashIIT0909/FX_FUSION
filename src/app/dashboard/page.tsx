@@ -17,7 +17,7 @@ export default function Dashboard() {
     const isConnected = useWalletStore(state => state.isConnected);
     const { userBaskets } = useBasketStore();
     const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
-    const [isLiquidityModalOpen, setIsLiquidityModalOpen] = useState(false);
+
 
     useEffect(() => {
         if (!isConnected) {
@@ -47,13 +47,7 @@ export default function Dashboard() {
                                 <ShoppingCart className="w-4 h-4 mr-2" />
                                 Buy Tokens
                             </Button>
-                            <Button
-                                onClick={() => setIsLiquidityModalOpen(true)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                            >
-                                <Plus className="w-4 h-4 mr-2" />
-                                Manage Liquidity
-                            </Button>
+
                         </div>
                     </div>
                 </div>
