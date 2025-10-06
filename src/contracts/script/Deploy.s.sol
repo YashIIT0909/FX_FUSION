@@ -62,12 +62,12 @@ contract DeployScript is Script {
         currencies[4] = Currency({
             name: "Fake Swiss Franc",
             symbol: "fCHF",
-            priceFeedId: 0x0b1e3297e69f162877b577b0b9a47508bfd7357ae086aa21bff4dcfa8155e24e // CHF/USD (fallback)
+            priceFeedId: 0x0b1e3297e69f162877b577b0d6a47a0d63b2392bc8499e6540da4187a63e28f8 // CHF/USD (fallback)
         });
         currencies[5] = Currency({
             name: "Fake Indian Rupee",
             symbol: "fINR",
-            priceFeedId: 0x605d5c2fbd7cc4f5a28cd621202e20dfb1c7d335696b15c3e5027c0ac64bb1ab // INR/USD (fallback)
+            priceFeedId: 0x0ac0f9a2886fc2dd708bc66cc2cea359052ce89d324f45d95fadbc6c4fcf1809 // INR/USD (fallback)
         });
 
         // Deploy and register fiat tokens
