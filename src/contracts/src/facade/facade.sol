@@ -35,7 +35,7 @@ contract Facade {
         // Contract can receive ETH
     }
 
-    // NEW: Simplified function for buying fiat tokens with ETH
+    // FIXED: Modified function to transfer tokens to user after swap
     function buyFiatWithETH(string calldata targetSymbol) external payable {
         if (msg.value == 0) {
             revert InvalidAmount();
@@ -45,7 +45,24 @@ contract Facade {
             revert TokenNotRegistered(targetSymbol);
         }
 
+        // Get the token contract
+        IERC20 targetToken = IERC20(tokens[targetSymbol]);
+
+        // Check balance before swap
+        uint256 balanceBefore = targetToken.balanceOf(address(this));
+
+        // Perform the swap - tokens come to this contract
         currencySwap.swapETHToToken{value: msg.value}(targetSymbol);
+
+        // Check balance after swap
+        uint256 balanceAfter = targetToken.balanceOf(address(this));
+
+        // Calculate how many tokens we received
+        uint256 tokensReceived = balanceAfter - balanceBefore;
+
+        // Transfer the tokens to the user
+        require(tokensReceived > 0, "No tokens received from swap");
+        targetToken.transfer(msg.sender, tokensReceived);
     }
 
     function swapTokens(
@@ -130,5 +147,19 @@ contract Facade {
                 IERC20(basketTokens[i]).balanceOf(address(this)) -
                 preBalance;
         }
+    }
+
+    // NEW: Emergency function to withdraw tokens stuck in contract (optional)
+    function withdrawToken(string calldata symbol, uint256 amount) external {
+        require(tokens[symbol] != address(0), "Token not registered");
+        IERC20(tokens[symbol]).transfer(msg.sender, amount);
+    }
+
+    // NEW: View function to check contract's token balance
+    function getContractBalance(
+        string calldata symbol
+    ) external view returns (uint256) {
+        require(tokens[symbol] != address(0), "Token not registered");
+        return IERC20(tokens[symbol]).balanceOf(address(this));
     }
 }
