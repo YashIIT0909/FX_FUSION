@@ -7,14 +7,15 @@ import { Label } from '@/src/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import { Textarea } from '@/src/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
-import { ArrowLeft, Plus, Minus, DollarSign, Percent, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, Minus } from 'lucide-react';
 import Link from 'next/link';
 import { redirect, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { UserBalance, Basket, TokenAllocation } from '@/src/lib/types';
 import { YourTokens } from '@/src/components/ui/your-tokens';
 import { BrowserProvider, Contract, parseUnits } from 'ethers';
 import FacadeContract from '@/src/contracts/out/facade.sol/Facade.json';
+import { priceService } from '@/src/lib/services/priceService';
+import { BasketMetadata } from '@/src/lib/types';
 
 const ERC20_ABI = ["function approve(address spender, uint256 amount) public returns (bool)"];
 
@@ -47,7 +48,7 @@ export default function CreateBasket() {
     const [initialToken, setInitialToken] = useState<string>('');
     const [initialAmount, setInitialAmount] = useState<number>(0);
 
-    // Allocation state: [{ symbol, percentage }]
+    // Allocation state
     const [allocations, setAllocations] = useState<{ symbol: string; percentage: number }[]>([]);
 
     // Calculate total allocation percentage
@@ -92,7 +93,13 @@ export default function CreateBasket() {
                 throw new Error("Facade contract address is not configured.");
             }
 
-            // --- START: APPROVAL LOGIC ---
+            // Get current prices for all tokens to store in metadata
+            const initialPrices: Record<string, number> = {};
+            ALL_TOKENS.forEach(token => {
+                initialPrices[token] = priceService.getCurrentPrice(token);
+            });
+
+            // Approval logic
             const initialTokenAddress = TOKEN_ADDRESSES[initialToken];
             if (!initialTokenAddress) {
                 throw new Error(`Address for token ${initialToken} not found in environment variables.`);
@@ -105,19 +112,21 @@ export default function CreateBasket() {
             const approveTx = await tokenContract.approve(facadeContractAddress, _inputAmount);
             await approveTx.wait();
             console.log('Approval successful');
-            // --- END: APPROVAL LOGIC ---
 
             const contract = new Contract(facadeContractAddress, FacadeContract.abi, signer);
 
-            // 1. Prepare parameters for mintBasketFromToken
+            // Prepare parameters for mintBasketFromToken
             const _fromSymbol = initialToken;
             const _fromAmount = _inputAmount;
             const _toSymbols = allocations.map(a => a.symbol);
-            // Convert percentages from 0-100 scale to 0-10000 for contract (basis points)
             const _percentages = allocations.map(a => a.percentage * 100);
 
-            // 2. Construct JSON metadata URI
-            const metadata = {
+            // Calculate lock end date
+            const lockEndDate = new Date();
+            lockEndDate.setDate(lockEndDate.getDate() + formData.lockDuration);
+
+            // Construct enhanced metadata with initial prices and lock information
+            const metadata: BasketMetadata = {
                 name: formData.name,
                 description: formData.description,
                 initialToken: _fromSymbol,
@@ -125,10 +134,13 @@ export default function CreateBasket() {
                 allocations: allocations,
                 lockDuration: formData.lockDuration,
                 createdAt: new Date().toISOString(),
+                lockEndDate: lockEndDate.toISOString(),
+                baseCurrency: _fromSymbol, // Use initial token as base currency
+                initialPrices: initialPrices, // Store current prices as initial prices
             };
             const _metadataURI = `data:application/json;base64,${btoa(JSON.stringify(metadata))}`;
 
-            // 3. Call mintBasketFromToken
+            // Call mintBasketFromToken
             const tx = await contract.mintBasketFromToken(
                 _fromSymbol,
                 _fromAmount,
@@ -140,7 +152,7 @@ export default function CreateBasket() {
             const receipt = await tx.wait();
             console.log('Basket creation successful:', receipt);
 
-            // Reload user baskets from blockchain instead of adding to local state
+            // Reload user baskets from blockchain
             await loadUserBaskets(address, signer);
 
             router.push('/dashboard');
@@ -191,7 +203,7 @@ export default function CreateBasket() {
                 {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-white mb-2">Create New Basket</h1>
-                    <p className="text-gray-400">Design your custom currency portfolio</p>
+                    <p className="text-gray-400">Design your custom currency portfolio with performance tracking</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
@@ -207,7 +219,7 @@ export default function CreateBasket() {
                                     id="name"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder="e.g., My Global Portfolio"
+                                    placeholder="e.g., Global Currency Portfolio"
                                     className="bg-slate-900 border-slate-700 text-white"
                                     required
                                 />
@@ -219,7 +231,7 @@ export default function CreateBasket() {
                                     id="description"
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    placeholder="Describe your investment strategy..."
+                                    placeholder="Describe your investment strategy and goals..."
                                     className="bg-slate-900 border-slate-700 text-white min-h-[100px]"
                                     required
                                 />
@@ -243,6 +255,9 @@ export default function CreateBasket() {
                                         <SelectItem value="365">1 year</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                <p className="text-xs text-gray-400">
+                                    During this period, your basket performance will be tracked and you cannot withdraw
+                                </p>
                             </div>
                         </CardContent>
                     </Card>
@@ -254,12 +269,13 @@ export default function CreateBasket() {
                     <Card className="bg-slate-800/50 border-slate-700">
                         <CardHeader>
                             <CardTitle className="text-white">Token Allocation</CardTitle>
+                            <p className="text-gray-400">Select your base currency and allocation percentages for performance tracking</p>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {/* Initial Token Selection */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-white">Initial Token</Label>
+                                    <Label className="text-white">Base Currency</Label>
                                     <Select
                                         value={initialToken}
                                         onValueChange={(value) => {
@@ -269,7 +285,7 @@ export default function CreateBasket() {
                                         }}
                                     >
                                         <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
-                                            <SelectValue placeholder="Select initial token" />
+                                            <SelectValue placeholder="Select base currency" />
                                         </SelectTrigger>
                                         <SelectContent className="bg-slate-900 border-slate-700">
                                             {eligibleTokens.map((token) => (
@@ -279,6 +295,9 @@ export default function CreateBasket() {
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    <p className="text-xs text-gray-400">
+                                        Performance will be measured against this currency
+                                    </p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-white">Amount</Label>
@@ -307,7 +326,7 @@ export default function CreateBasket() {
                             {initialToken && (
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-white font-medium">Allocate to other tokens</span>
+                                        <span className="text-white font-medium">Allocate to other currencies</span>
                                         <Button
                                             type="button"
                                             onClick={addAllocationToken}
@@ -315,13 +334,13 @@ export default function CreateBasket() {
                                             className="bg-blue-600 hover:bg-blue-700 text-white"
                                         >
                                             <Plus className="w-4 h-4 mr-2" />
-                                            Add Token
+                                            Add Currency
                                         </Button>
                                     </div>
                                     {allocations.map((alloc, idx) => (
                                         <div key={alloc.symbol} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-slate-900/50 p-4 rounded-lg border border-slate-700">
                                             <div>
-                                                <Label className="text-white">Token</Label>
+                                                <Label className="text-white">Currency</Label>
                                                 <Select
                                                     value={alloc.symbol}
                                                     onValueChange={(value) => {
@@ -345,7 +364,7 @@ export default function CreateBasket() {
                                                 </Select>
                                             </div>
                                             <div>
-                                                <Label className="text-white">Percentage (%)</Label>
+                                                <Label className="text-white">Allocation (%)</Label>
                                                 <Input
                                                     type="number"
                                                     value={alloc.percentage}
@@ -384,7 +403,7 @@ export default function CreateBasket() {
                             )}
                             {!initialToken && (
                                 <div className="text-center py-8 text-gray-400">
-                                    Select an initial token and amount to start allocation
+                                    Select a base currency and amount to start allocation
                                 </div>
                             )}
                         </CardContent>
@@ -403,7 +422,7 @@ export default function CreateBasket() {
                                     Creating Basket...
                                 </>
                             ) : (
-                                'Create Basket'
+                                'Create Performance Basket'
                             )}
                         </Button>
                     </div>
